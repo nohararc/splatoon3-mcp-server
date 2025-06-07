@@ -26,16 +26,10 @@ class BattleSchedule(BaseModel):
     schedules: List[Schedule]
 
 
-class WeaponCategory(BaseModel):
-    key: str
-    name: str
-
-
 class Weapon(BaseModel):
     key: str
     name: str
     image: Optional[str] = None
-    category: Optional[WeaponCategory] = None
 
 
 class SalmonSchedule(BaseModel):
@@ -49,11 +43,3 @@ class SalmonSchedule(BaseModel):
 
 class SalmonRunSchedule(BaseModel):
     schedules: List[SalmonSchedule]
-
-
-class CurrentBattlesResponse(BaseModel):
-    regular: Optional[Schedule] = None
-    bankara_open: Optional[Schedule] = None
-    bankara_challenge: Optional[Schedule] = None
-    x_match: Optional[Schedule] = None
-    fest: Optional[Schedule] = None

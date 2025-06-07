@@ -1,6 +1,7 @@
 import httpx
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
+from enum import Enum
 
 try:
     from .models import (
@@ -22,6 +23,13 @@ except ImportError:
         Weapon,
         SalmonSchedule,
     )
+
+
+class BattleMode(Enum):
+    REGULAR = "regular"
+    BANKARA_OPEN = "bankara-open"
+    BANKARA_CHALLENGE = "bankara-challenge"
+    X_MATCH = "x"
 
 
 class Splatoon3API:
@@ -49,14 +57,14 @@ class Splatoon3API:
             raise Exception(f"Unexpected error: {str(e)}")
 
     def _parse_schedule(self, data: Dict[str, Any]) -> Schedule:
-        stages = []
-        for stage_data in data.get("stages", []):
-            stage = Stage(
+        stages = [
+            Stage(
                 id=stage_data["id"],
                 name=stage_data["name"],
                 image=stage_data.get("image"),
             )
-            stages.append(stage)
+            for stage_data in data.get("stages", [])
+        ]
 
         rule = Rule(key=data["rule"]["key"], name=data["rule"]["name"])
 
@@ -77,14 +85,14 @@ class Splatoon3API:
             image=data["stage"].get("image"),
         )
 
-        weapons = []
-        for weapon_data in data.get("weapons", []):
-            weapon = Weapon(
+        weapons = [
+            Weapon(
                 key=weapon_data.get("key", ""),
                 name=weapon_data["name"],
                 image=weapon_data.get("image"),
             )
-            weapons.append(weapon)
+            for weapon_data in data.get("weapons", [])
+        ]
 
         return SalmonSchedule(
             start_time=datetime.fromisoformat(
@@ -97,65 +105,45 @@ class Splatoon3API:
             is_team_contest=data.get("is_team_contest", False),
         )
 
-    async def get_regular_now(self) -> Optional[Schedule]:
-        data = await self._request("/regular/now")
+    async def _get_battle_now(self, mode: BattleMode) -> Optional[Schedule]:
+        """指定されたモードの現在のバトル情報を取得"""
+        data = await self._request(f"/{mode.value}/now")
         results = data.get("results", [])
-        if results:
-            return self._parse_schedule(results[0])
-        return None
+        return self._parse_schedule(results[0]) if results else None
+
+    async def _get_battle_schedule(self, mode: BattleMode) -> BattleSchedule:
+        """指定されたモードのスケジュールを取得"""
+        data = await self._request(f"/{mode.value}/schedule")
+        schedules = [self._parse_schedule(item) for item in data.get("results", [])]
+        return BattleSchedule(schedules=schedules)
+
+    async def get_regular_now(self) -> Optional[Schedule]:
+        return await self._get_battle_now(BattleMode.REGULAR)
 
     async def get_bankara_open_now(self) -> Optional[Schedule]:
-        data = await self._request("/bankara-open/now")
-        results = data.get("results", [])
-        if results:
-            return self._parse_schedule(results[0])
-        return None
+        return await self._get_battle_now(BattleMode.BANKARA_OPEN)
 
     async def get_bankara_challenge_now(self) -> Optional[Schedule]:
-        data = await self._request("/bankara-challenge/now")
-        results = data.get("results", [])
-        if results:
-            return self._parse_schedule(results[0])
-        return None
+        return await self._get_battle_now(BattleMode.BANKARA_CHALLENGE)
 
     async def get_x_match_now(self) -> Optional[Schedule]:
-        data = await self._request("/x/now")
-        results = data.get("results", [])
-        if results:
-            return self._parse_schedule(results[0])
-        return None
+        return await self._get_battle_now(BattleMode.X_MATCH)
 
     async def get_regular_schedule(self) -> BattleSchedule:
-        data = await self._request("/regular/schedule")
-        schedules = []
-        for item in data.get("results", []):
-            schedules.append(self._parse_schedule(item))
-        return BattleSchedule(schedules=schedules)
+        return await self._get_battle_schedule(BattleMode.REGULAR)
 
     async def get_bankara_open_schedule(self) -> BattleSchedule:
-        data = await self._request("/bankara-open/schedule")
-        schedules = []
-        for item in data.get("results", []):
-            schedules.append(self._parse_schedule(item))
-        return BattleSchedule(schedules=schedules)
+        return await self._get_battle_schedule(BattleMode.BANKARA_OPEN)
 
     async def get_bankara_challenge_schedule(self) -> BattleSchedule:
-        data = await self._request("/bankara-challenge/schedule")
-        schedules = []
-        for item in data.get("results", []):
-            schedules.append(self._parse_schedule(item))
-        return BattleSchedule(schedules=schedules)
+        return await self._get_battle_schedule(BattleMode.BANKARA_CHALLENGE)
 
     async def get_x_match_schedule(self) -> BattleSchedule:
-        data = await self._request("/x/schedule")
-        schedules = []
-        for item in data.get("results", []):
-            schedules.append(self._parse_schedule(item))
-        return BattleSchedule(schedules=schedules)
+        return await self._get_battle_schedule(BattleMode.X_MATCH)
 
     async def get_salmon_run_schedule(self) -> SalmonRunSchedule:
         data = await self._request("/coop-grouping/schedule")
-        schedules = []
-        for item in data.get("results", []):
-            schedules.append(self._parse_salmon_schedule(item))
+        schedules = [
+            self._parse_salmon_schedule(item) for item in data.get("results", [])
+        ]
         return SalmonRunSchedule(schedules=schedules)
